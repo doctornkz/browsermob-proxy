@@ -7,6 +7,7 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpObject;
 import io.netty.handler.codec.http.HttpRequest;
+import jdk.nashorn.internal.ir.RuntimeNode;
 import net.lightbody.bmp.client.ClientUtil;
 import net.lightbody.bmp.core.har.Har;
 import net.lightbody.bmp.core.har.HarLog;
@@ -338,27 +339,59 @@ public class BrowserMobProxyServer implements BrowserMobProxy {
             bootstrappedWithDefaultChainedProxy.set(true);
 
             bootstrap.withChainProxyManager(new ChainedProxyManager() {
+
+                String nonProxyHosts = System.getProperty("http.nonProxyHosts");
+
+                private boolean proxyBypass(HttpRequest httpRequest){
+                    if (nonProxyHosts == null){
+                        return false;
+                    }
+
+                    String uriHttpRequest = httpRequest.getUri();
+                    log.info("Have Pattern: " + nonProxyHosts + ", got request: " + uriHttpRequest);
+
+                    return Pattern.matches(nonProxyHosts, uriHttpRequest);
+                }
+
                 @Override
                 public void lookupChainedProxies(HttpRequest httpRequest, Queue<ChainedProxy> chainedProxies) {
                     final InetSocketAddress upstreamProxy = upstreamProxyAddress;
-                    if (upstreamProxy != null) {
-                        chainedProxies.add(new ChainedProxyAdapter() {
-                            @Override
-                            public InetSocketAddress getChainedProxyAddress() {
-                                return upstreamProxy;
-                            }
 
-                            @Override
-                            public void filterRequest(HttpObject httpObject) {
-                                String chainedProxyAuth = chainedProxyCredentials;
-                                if (chainedProxyAuth != null) {
-                                    if (httpObject instanceof HttpRequest) {
-                                        HttpHeaders.addHeader((HttpRequest)httpObject, HttpHeaders.Names.PROXY_AUTHORIZATION, "Basic " + chainedProxyAuth);
+                    if (upstreamProxy != null) {
+
+                        if (proxyBypass(httpRequest)){
+
+                            log.info("Bypassing : " + httpRequest.getUri());
+                            chainedProxies.add(ChainedProxyAdapter.FALLBACK_TO_DIRECT_CONNECTION);
+
+                        } else {
+                            chainedProxies.add(new ChainedProxyAdapter() {
+
+                                @Override
+                                public InetSocketAddress getChainedProxyAddress() {
+                                    return upstreamProxy;
+                                }
+
+
+                                @Override
+                                public void filterRequest(HttpObject httpObject) {
+                                    String chainedProxyAuth = chainedProxyCredentials;
+                                    if (chainedProxyAuth != null) {
+                                        if (httpObject instanceof HttpRequest) {
+                                            HttpHeaders.addHeader((HttpRequest) httpObject, HttpHeaders.Names.PROXY_AUTHORIZATION, "Basic " + chainedProxyAuth);
+                                        }
                                     }
                                 }
-                            }
-                        });
-                    }
+                            });
+                        }
+
+
+
+                    }   // <
+
+
+
+
                 }
             });
         }

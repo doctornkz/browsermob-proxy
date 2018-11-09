@@ -343,12 +343,23 @@ public class BrowserMobProxyServer implements BrowserMobProxy {
                 String nonProxyHosts = System.getProperty("http.nonProxyHosts");
 
                 private boolean proxyBypass(HttpRequest httpRequest){
+
+                    /*
+
+                    Bypassing based on regexp mechanism.
+                    For example you need bypass google.com
+
+                    Use system properties:
+                    -Dhttp.nonProxyHosts="(.*)google.com(.*)"
+
+                    */
+
                     if (nonProxyHosts == null){
                         return false;
                     }
 
                     String uriHttpRequest = httpRequest.getUri();
-                    log.info("Have Pattern: " + nonProxyHosts + ", got request: " + uriHttpRequest);
+                    log.info("Have pattern: " + nonProxyHosts + ", got request: " + uriHttpRequest);
 
                     return Pattern.matches(nonProxyHosts, uriHttpRequest);
                 }
@@ -356,11 +367,8 @@ public class BrowserMobProxyServer implements BrowserMobProxy {
                 @Override
                 public void lookupChainedProxies(HttpRequest httpRequest, Queue<ChainedProxy> chainedProxies) {
                     final InetSocketAddress upstreamProxy = upstreamProxyAddress;
-
                     if (upstreamProxy != null) {
-
                         if (proxyBypass(httpRequest)){
-
                             log.info("Bypassing : " + httpRequest.getUri());
                             chainedProxies.add(ChainedProxyAdapter.FALLBACK_TO_DIRECT_CONNECTION);
 
@@ -371,7 +379,6 @@ public class BrowserMobProxyServer implements BrowserMobProxy {
                                 public InetSocketAddress getChainedProxyAddress() {
                                     return upstreamProxy;
                                 }
-
 
                                 @Override
                                 public void filterRequest(HttpObject httpObject) {
@@ -384,14 +391,7 @@ public class BrowserMobProxyServer implements BrowserMobProxy {
                                 }
                             });
                         }
-
-
-
-                    }   // <
-
-
-
-
+                    }
                 }
             });
         }
